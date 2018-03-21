@@ -13,10 +13,14 @@ exports.calculateNearest = functions.https.onRequest( ( req, res ) => {
 	const lat = req.query.lat // latitude
 	const lng = req.query.lng // longitude
 
-	const locations = admin.database();
-	const ref = locations.ref("safeSpaces");
+	if( !lat || !lng  ) {
+		console.log(lat,lng);
+		return res.json({user:{latitude:lat,longitude:lng},safespaces:[]});
+	}
 
-	ref.once("value", function(snapshot) {
+	const locations = admin.database();
+
+	locations.ref("safeSpaces").once("value", function(snapshot) {
 
 	  	const loc = snapshot.val()
 	  	let ftenKM = []
@@ -31,7 +35,7 @@ exports.calculateNearest = functions.https.onRequest( ( req, res ) => {
 	  		// Distance form user location to safespace location in meters
 			const distance =  geolib.getDistance({latitude:lat, longitude:lng},{latitude:fslat, longitude:fslng})
 
-			// Create response
+			// response
 			const response = {
 				id:loc[data].id,
 				address:loc[data].address,
@@ -47,6 +51,56 @@ exports.calculateNearest = functions.https.onRequest( ( req, res ) => {
 		return res.json({user:{latitude:lat,longitude:lng},safespaces:slice(result= arraySort(ftenKM,'distance'),0,5)});
 	  	})	  	
 })
+
+exports.ratingListener = functions.database.ref('/ratings/{locId}/{ratingId}').onWrite((event) => {
+
+	  const rating = event.data.val();
+	  const ratingId = event.params.ratingId;
+	  const locId = event.params.locId;
+	  const db = admin.database();
+	  const tallyref =  db.ref(`ratingTally/${locId}`)
+		
+	  tallyref.once("value", function(snapshot) {
+
+		let tally = snapshot.val();
+		let tally2 = Object.keys(tally);
+
+
+		switch (rating.rate) {
+			case 1:
+				tally[1]++
+				break;
+			case 2:
+				tally[2]++
+				break;
+			case 3:
+				tally[3]++
+				break;
+			case 4:
+				tally[4]++
+				break;
+			case 5:
+				tally[5]++
+				break;
+			default:
+				console.log("Err: Tally not found.")
+				break;
+		}
+
+		let restally = {
+			1:tally[1],
+			2:tally[2],
+			3:tally[3],
+			4:tally[4],
+			5:tally[5],
+		}
+		return tallyref.set(restally)
+
+	})
+
+
+
+});
 		// firebase deploy --only functions:calculateNearest
 		//git add --all
 		//git commit -m "commit message"
